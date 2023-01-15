@@ -1,0 +1,39 @@
+version: '3.3'
+
+services:
+    db:
+        image: postgres:13-alpine
+        ports:
+            - 5432:5432
+        environment:
+            - POSTGRES_PASSWORD=postgres
+        volumes:
+            - /PATH/TO/mlflow_showcase/db_data:/var/lib/postgresql/data
+
+    s3:
+        image: minio/minio:RELEASE.2023-01-06T18-11-18Z.fips
+        ports:
+            - 9000:9000
+            - 9001:9001
+        volumes:
+            - /PATH/TO/mlflow_showcase/s3_data:/data
+        environment:
+            - MINIO_ACCESS_KEY=minioadmin
+            - MINIO_SECRET_KEY=minioadmin
+        command: server --address ":9000" --console-address ":9001" /data
+
+    mlflow:
+        image: mlflow-base
+        ports:
+            - 5000:5000
+        depends_on:
+            - db
+            - s3
+        environment:
+            - MLFLOW_S3_ENDPOINT_URL=http://s3:9000
+            - MLFLOW_S3_IGNORE_TLS=true
+            - MLFLOW_S3_BUCKET=s3://ml-bucket
+            - AWS_ACCESS_KEY_ID=minioadmin
+            - AWS_SECRET_ACCESS_KEY=minioadmin
+            - MLFLOW_TRACKING_URI=postgresql://postgres:postgres@db:5432/postgres
+        command: ["mlflow", "ui", "--backend-store-uri", "postgresql://postgres:postgres@db:5432/postgres", "--artifacts-destination", "s3://ml-bucket", "--host", "0.0.0.0"]
